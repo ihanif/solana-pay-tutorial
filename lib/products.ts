@@ -15,4 +15,4 @@ export const products = [
     priceSol: 0.1,
     priceUsd: 10,
   }
-]
+];
