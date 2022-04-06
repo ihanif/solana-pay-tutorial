@@ -110,7 +110,7 @@ export default function Checkout() {
           connection,
           reference
         );
-        console.log('They paid!!!');
+        router.push('/confirmed');
       } catch (e) {
         if (e instanceof FindTransactionSignatureError) {
           // No transaction found yet, ignore this error
