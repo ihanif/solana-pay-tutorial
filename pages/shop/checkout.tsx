@@ -1,5 +1,17 @@
-import { createQR, encodeURL, EncodeURLComponents } from '@solana/pay';
-import { Keypair } from '@solana/web3.js';
+// pages/shop/checkout.tsx
+import {
+  createQR,
+  encodeURL,
+  EncodeURLComponents,
+  findTransactionSignature,
+  FindTransactionSignatureError,
+  validateTransactionSignature,
+  ValidateTransactionSignatureError,
+} from '@solana/pay';
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
+import { clusterApiUrl, Connection, Keypair } from '@solana/web3.js';
+import BigNumber from 'bignumber.js';
+import { time } from 'console';
 import { useRouter } from 'next/router';
 import { useEffect, useMemo, useRef } from 'react';
 import BackLink from '../../components/BackLink';
@@ -17,6 +29,11 @@ export default function Checkout() {
 
   // Unique address that we can listen for payments to
   const reference = useMemo(() => Keypair.generate().publicKey, []);
+
+  // Get a connection to Solana devnet
+  const network = WalletAdapterNetwork.Devnet;
+  const endpoint = clusterApiUrl(network);
+  const connection = new Connection(endpoint);
 
   // Solana Pay transfer params
   const urlParams: EncodeURLComponents = {
@@ -40,6 +57,46 @@ export default function Checkout() {
       qr.append(qrRef.current);
     }
   });
+
+  // Check every 0.5s if the transaction is completed
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        // Check if there is any transaction for the reference
+        const signatureInfo = await findTransactionSignature(
+          connection,
+          reference,
+          {},
+          'confirmed'
+        );
+        // Validate that the transaction has the expected recipient, amount and SPL token
+        await validateTransactionSignature(
+          connection,
+          signatureInfo.signature,
+          shopAddress,
+          amount,
+          usdcAddress,
+          reference,
+          'confirmed'
+        );
+        router.push('/shop/confirmed');
+      } catch (e) {
+        if (e instanceof FindTransactionSignatureError) {
+          // No transaction found yet, ignore this error
+          return;
+        }
+        if (e instanceof ValidateTransactionSignatureError) {
+          // Transaction is invalid
+          console.error('Transaction is invalid', e);
+          return;
+        }
+        console.error('Unknown error', e);
+      }
+    }, 500);
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
 
   return (
     <div className="flex flex-col items-center gap-8">
